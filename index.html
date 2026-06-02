@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Mobil Aja - By Raska</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #87CEEB; font-family: sans-serif; user-select: none; -webkit-user-select: none; }
+        #canvas-container { width: 100vw; height: 100vh; display: block; background: #87CEEB; }
+        
+        #loading-screen { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: #87CEEB; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; font-weight: bold; z-index: 99; }
+        
+        #hud { position: absolute; top: 15px; left: 15px; color: white; font-weight: bold; font-size: 20px; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); pointer-events: none; display: none; z-index: 10; }
+        #hud div { margin-bottom: 5px; }
+        #speedo { color: #ffeb3b !important; font-size: 22px; }
+        #boost-indicator { color: #00e676 !important; font-size: 18px; display: none; animation: pulse 0.5s infinite alternate; }
+        
+        @keyframes pulse {
+            from { opacity: 0.5; } to { opacity: 1; }
+        }
+        
+        #menu { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: linear-gradient(135deg, rgba(15,32,67,0.95), rgba(44,83,119,0.95)); display: none; flex-direction: column; align-items: center; justify-content: center; color: white; z-index: 20; }
+        h1 { font-size: 45px; margin: 0 0 5px 0; color: #ffeb3b; text-shadow: 3px 3px 0px #c62828; letter-spacing: 2px; }
+        h2 { font-size: 16px; margin: 0 0 15px 0; color: #b0bec5; font-style: italic; }
+        
+        #menu-stats-container { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 20px; }
+        #menu-coin-total { font-size: 18px; color: #ffd700; font-weight: bold; background: rgba(0,0,0,0.4); padding: 6px 20px; border-radius: 20px; border: 1px solid rgba(255,215,0,0.3); }
+        #menu-high-score { font-size: 18px; color: #00e676; font-weight: bold; background: rgba(0,0,0,0.4); padding: 6px 20px; border-radius: 20px; border: 1px solid rgba(0,230,118,0.3); }
+
+        .box-toko { background: rgba(255,255,255,0.12); padding: 20px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.2); text-align: center; margin-bottom: 30px; width: 80%; max-width: 300px; }
+        #menu-car-name { font-size: 26px; font-weight: bold; margin: 0 0 10px 0; color: #fff; text-shadow: 1px 1px 2px #000; }
+        
+        .nav-btn { padding: 12px 22px; font-size: 20px; font-weight: bold; background: #2196F3; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 0 15px; }
+        #btn-beli { padding: 12px 24px; font-size: 16px; font-weight: bold; background: #4CAF50; color: white; border: none; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 15px; box-shadow: 0 3px 6px rgba(0,0,0,0.2); }
+        #btn-mulai { padding: 18px 65px; font-size: 24px; font-weight: bold; background: #ff9800; color: white; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 5px 15px rgba(255,152,0,0.4); }
+        
+        button:active { transform: scale(0.95); }
+    </style>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div id="loading-screen">MEMUAT GAME...</div>
+
+    <div id="hud">
+        <div id="scoreLabel">Skor: 0</div>
+        <div id="speedo">Kecepatan: 30 KM/H</div>
+        <div id="boost-indicator">🚀 NITRO BOOST ACTIVE! 🚀</div>
+        <div id="coinLabel">Koin: 0</div>
+        <div id="carLabel">Mobil: Yanto</div>
+    </div>
+
+    <div id="menu">
+        <h1>MOBIL AJA</h1>
+        <h2>Karya: Raska</h2>
+        
+        <div id="menu-stats-container">
+            <div id="menu-coin-total">Koinmu: 0</div>
+            <div id="menu-high-score">Skor Tertinggi: 0</div>
+        </div>
+
+        <div class="box-toko">
+            <p id="menu-car-name">Yanto</p>
+            <div style="display: flex; justify-content: center; align-items: center;">
+                <button class="nav-btn" onclick="gantiGudang(-1)">◀</button>
+                <button class="nav-btn" onclick="gantiGudang(1)">▶</button>
+            </div>
+            <button id="btn-beli" onclick="eksekusiToko()">TERPILIH</button>
+        </div>
+        <button id="btn-mulai" onclick="mulaiGame()">MULAI</button>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                if (typeof THREE === 'undefined') {
+                    document.getElementById('loading-screen').innerText = "Gagal memuat Three.js. Periksa koneksi internet!";
+                    return;
+                }
+                document.getElementById('loading-screen').style.display = 'none';
+                document.getElementById('menu').style.display = 'flex';
+                
+                muatProgress();
+                inisialisasiGameDasar();
+            }, 500);
+        });
+
+        // --- GLOBAL VARIABLES ---
+        let totalKoin = 0;
+        let skorMax = 0; 
+        let skor = 0;
+        let koinSesi = 0;
+        let gameBerjalan = false;
+        
+        const kecepatanAwal = 30.0;
+        let kecepatan = kecepatanAwal; 
+        const kecepatanMaks = 110.0; 
+        
+        let jalurSekarang = 1; 
+        const posisiJalur = [-2, 0, 2]; 
+
+        let mobilTerpilih = 0;
+        let mobilDilihat = 0;
+        
+        let cooldownZebra = 0; 
+        const MIN_COOLDOWN_ZEBRA = 3; 
+
+        let cooldownBoost = 0;          
+        const MIN_COOLDOWN_BOOST = 5;    
+
+        let waktuBoost = 0; 
+        const DURASI_BOOST = 3.0;        
+        let bonusKecepatanBoost = 0; 
+
+        const daftarMobil = [
+            { id: 0, nama: "Yanto", harga: 0, dimiliki: true, warna: 0xe74c3c, tinggi: 0.26, pjg: 1.35, tipe: "sedan" },
+            { id: 1, nama: "Adit", harga: 450, dimiliki: false, warna: 0x2ecc71, tinggi: 0.26, pjg: 1.35, tipe: "sedan" },
+            { id: 2, nama: "Tondi", harga: 1200, dimiliki: false, warna: 0xf1c40f, tinggi: 0.38, pjg: 1.5, tipe: "suv" }, 
+            { id: 3, nama: "Januar", harga: 3000, dimiliki: false, warna: 0x1abc9c, tinggi: 0.22, pjg: 1.45, tipe: "sport" },
+            { id: 4, nama: "Lukman", harga: 7500, dimiliki: false, warna: 0x9b59b6, tinggi: 0.20, pjg: 1.5, tipe: "sport" }  
+        ];
+
+        let scene, camera, renderer, mobilPemainContainer;
+        let daftarRintangan = [];
+        let daftarKoinObj = [];
+        let daftarMekanikJalan = []; 
+        let segmenLingkungan = [];
+
+        let roadMat, sideMat, grassMat, coinGeo, coinMat, rumahMat, atapsMat, pintuMat, detailKacaMat, daunMat, kacaMat, hitamMat, lampuMat, lampuBelakangMat, lampuJalanMat, kacaLawanMat, velgMat, matahariMat, markaJalanMat, reflektorMat, rambuKuningMat;
+        let polisiTidurMat, tembokMat;
+
+        // Material khusus bunga bervariasi
+        let bungaMerahMat, bungaKuningMat, bungaPutihMat, tangkaiBungaMat;
+
+        function simpanProgress() {
+            try {
+                const dataSave = {
+                    koin: totalKoin,
+                    skorTertinggi: skorMax,
+                    mobilTerpilih: mobilTerpilih,
+                    statusMilik: daftarMobil.map(m => m.dimiliki)
+                };
+                localStorage.setItem('mobilAja_saveData_raska', JSON.stringify(dataSave));
+            } catch(e) { console.log("Gagal menyimpan ke localStorage"); }
+        }
+
+        function muatProgress() {
+            try {
+                const dataLokal = localStorage.getItem('mobilAja_saveData_raska');
+                if (dataLokal) {
+                    const parseData = JSON.parse(dataLokal);
+                    totalKoin = parseData.koin || 0;
+                    skorMax = parseData.skorTertinggi || 0;
+                    mobilTerpilih = parseData.mobilTerpilih || 0;
+                    mobilDilihat = mobilTerpilih;
+                    if (parseData.statusMilik && parseData.statusMilik.length === daftarMobil.length) {
+                        for (let i = 0; i < daftarMobil.length; i++) {
+                            daftarMobil[i].dimiliki = parseData.statusMilik[i];
+                        }
+                    }
+                }
+            } catch(e) { console.log("Gagal memuat localStorage"); }
+            document.getElementById('menu-coin-total').innerText = `Koinmu: ${totalKoin}`;
+            document.getElementById('menu-high-score').innerText = `Skor Tertinggi: ${Math.floor(skorMax)}`;
+        }
+
+        function inisialisasiGameDasar() {
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB); 
+            scene.fog = new THREE.Fog(0x87CEEB, 40, 160); 
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            container.appendChild(renderer.domElement);
+
+            const matahariCahaya = new THREE.DirectionalLight(0xffffff, 1.6);
+            matahariCahaya.position.set(15, 45, -40);
+            scene.add(matahariCahaya);
+            scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+
+            roadMat = new THREE.MeshStandardMaterial({ color: 0x4f4f4f, roughness: 0.8 }); 
+            sideMat = new THREE.MeshStandardMaterial({ color: 0x8c8c8c }); 
+            grassMat = new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 0.9 }); 
+            coinMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.8, roughness: 0.1 });
+            
+            polisiTidurMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 });
+            tembokMat = new THREE.MeshStandardMaterial({ color: 0x95a5a6, roughness: 0.7 });
+
+            rumahMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.5 });
+            atapsMat = new THREE.MeshStandardMaterial({ color: 0xb83b2e, roughness: 0.4 });
+            pintuMat = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.6 });
+            detailKacaMat = new THREE.MeshStandardMaterial({ color: 0x223344, roughness: 0.2 });
+
+            daunMat = new THREE.MeshStandardMaterial({ color: 0x388e3c, roughness: 0.8 });
+            kacaMat = new THREE.MeshStandardMaterial({ color: 0x112233, roughness: 0.05, metalness: 0.7 });
+            kacaLawanMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.2 });
+            hitamMat = new THREE.MeshStandardMaterial({ color: 0x181818, roughness: 0.85 });
+            velgMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.2, metalness: 0.7 });
+            lampuMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            lampuBelakangMat = new THREE.MeshBasicMaterial({ color: 0xff3333 });
+            lampuJalanMat = new THREE.MeshBasicMaterial({ color: 0xffeb3b });
+            
+            markaJalanMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1.0 }); 
+            reflektorMat = new THREE.MeshBasicMaterial({ color: 0xffb300 }); 
+            matahariMat = new THREE.MeshBasicMaterial({ color: 0xffeb3b, fog: false }); 
+            rambuKuningMat = new THREE.MeshStandardMaterial({ color: 0xf1c40f, roughness: 0.5 });
+
+            // Inisialisasi material bunga
+            bungaMerahMat = new THREE.MeshStandardMaterial({ color: 0xe74c3c, roughness: 0.6 });
+            bungaKuningMat = new THREE.MeshStandardMaterial({ color: 0xf1c40f, roughness: 0.6 });
+            bungaPutihMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 });
+            tangkaiBungaMat = new THREE.MeshStandardMaterial({ color: 0x27ae60, roughness: 0.9 });
+
+            const vertexShaderLangit = `
+                varying vec3 vWorldPosition;
+                void main() {
+                    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                    vWorldPosition = worldPosition.xyz;
+                    gl_Position = projectionMatrix * viewMatrix * worldPosition;
+                }
+            `;
+            const fragmentShaderLangit = `
+                varying vec3 vWorldPosition;
+                void main() {
+                    float h = normalize(vWorldPosition).y;
+                    vec3 warnaLangitAtas = vec3(0.12, 0.48, 0.88); 
+                    vec3 warnaAwanUfuk = vec3(0.94, 0.96, 0.98);    
+                    gl_FragColor = vec4(mix(warnaAwanUfuk, warnaLangitAtas, max(h, 0.0)), 1.0);
+                }
+            `;
+            const skyGeo = new THREE.SphereGeometry(300, 32, 15);
+            const skyMat = new THREE.ShaderMaterial({
+                vertexShader: vertexShaderLangit,
+                fragmentShader: fragmentShaderLangit,
+                side: THREE.BackSide,
+                fog: false 
+            });
+            const skyDome = new THREE.Mesh(skyGeo, skyMat);
+            scene.add(skyDome);
+
+            const sunGeo = new THREE.SphereGeometry(8.0, 16, 16);
+            const sunMesh = new THREE.Mesh(sunGeo, matahariMat);
+            sunMesh.position.set(0, 42, -240); 
+            scene.add(sunMesh);
+
+            coinGeo = new THREE.CylinderGeometry(0.20, 0.20, 0.05, 16);
+
+            mobilPemainContainer = new THREE.Group();
+            buildCarMesh(mobilPemainContainer, daftarMobil[mobilTerpilih]);
+            mobilPemainContainer.position.set(posisiJalur[jalurSekarang], 0, 0);
+            scene.add(mobilPemainContainer);
+            
+            document.getElementById('carLabel').innerText = `Mobil: ${daftarMobil[mobilTerpilih].nama}`;
+
+            camera.position.set(0, 3.0, 4.6); 
+            camera.lookAt(0, 0.7, -10);
+
+            cooldownZebra = 0;
+            cooldownBoost = 0; 
+            for (let i = 0; i > -250; i -= 50) {
+                buatSegmenJalan(i);
+            }
+
+            gantiGudang(0);
+            animate();
+        }
+
+        function buildCarMesh(group, info) {
+            while(group.children.length > 0){ group.remove(group.children[0]); }
+            
+            const bodiMat = new THREE.MeshStandardMaterial({ color: info.warna, roughness: 0.15, metalness: 0.5 });
+            const sasisLebar = 0.74;
+            
+            const bodiMain = new THREE.Mesh(new THREE.BoxGeometry(sasisLebar, info.tinggi, info.pjg * 0.7), bodiMat);
+            bodiMain.position.set(0, info.tinggi / 2 + 0.1, info.pjg * 0.15);
+            group.add(bodiMain);
+
+            const kapDepan = new THREE.Mesh(new THREE.BoxGeometry(sasisLebar, info.tinggi * 0.75, info.pjg * 0.3), bodiMat);
+            kapDepan.position.set(0, (info.tinggi * 0.75) / 2 + 0.1, -info.pjg * 0.35);
+            group.add(kapDepan);
+
+            let pjgKabin = info.pjg * 0.52;
+            let tinggiKabin = info.tinggi * 0.70;
+            const kabin = new THREE.Mesh(new THREE.BoxGeometry(sasisLebar * 0.85, tinggiKabin, pjgKabin), bodiMat);
+            let offsetZKabin = info.tipe === "sport" ? 0.10 : -0.02;
+            kabin.position.set(0, bodiMain.position.y + info.tinggi / 2 + tinggiKabin / 2 - 0.01, offsetZKabin);
+            group.add(kabin);
+
+            const kacaDepan = new THREE.Mesh(new THREE.BoxGeometry(sasisLebar * 0.80, tinggiKabin * 0.8, 0.02), kacaMat);
+            kacaDepan.position.set(0, kabin.position.y + 0.01, kabin.position.z - pjgKabin/2 + 0.02);
+            kacaDepan.rotation.x = -0.42;
+            group.add(kacaDepan);
+
+            const kacaBelakang = new THREE.Mesh(new THREE.BoxGeometry(sasisLebar * 0.80, tinggiKabin * 0.7, 0.02), kacaMat);
+            kacaBelakang.position.set(0, kabin.position.y + 0.01, kabin.position.z + pjgKabin/2 - 0.02);
+            kacaBelakang.rotation.x = 0.42;
+            group.add(kacaBelakang);
+
+            const kacaSampingKiri = new THREE.Mesh(new THREE.BoxGeometry(0.01, tinggiKabin * 0.6, pjgKabin * 0.7), kacaMat);
+            kacaSampingKiri.position.set(-sasisLebar * 0.43, kabin.position.y, kabin.position.z);
+            const kacaSampingKanan = kacaSampingKiri.clone();
+            kacaSampingKanan.position.x = sasisLebar * 0.43;
+            group.add(kacaSampingKiri, kacaSampingKanan);
+
+            const lampuKiri = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 0.02), lampuMat);
+            lampuKiri.position.set(-0.25, kapDepan.position.y + 0.03, -info.pjg/2 - 0.005);
+            const lampuKanan = lampuKiri.clone(); lampuKanan.position.x = 0.25;
+            group.add(lampuKiri, lampuKanan);
+
+            const lampuBelakangKiri = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.05, 0.02), lampuBelakangMat);
+            lampuBelakangKiri.position.set(-0.24, bodiMain.position.y + 0.05, info.pjg/2 + 0.005);
+            const lampuBelakangKanan = lampuBelakangKiri.clone(); lampuBelakangKanan.position.x = 0.24;
+            group.add(lampuBelakangKiri, lampuBelakangKanan);
+
+            if (info.tipe === "sport") {
+                const tiangKiri = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.14, 0.02), hitamMat);
+                tiangKiri.position.set(-0.26, bodiMain.position.y + info.tinggi/2 + 0.06, info.pjg/2 - 0.06);
+                const tiangKanan = tiangKiri.clone(); tiangKanan.position.x = 0.26;
+                
+                const sayapSpoiler = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.02, 0.14), bodiMat);
+                sayapSpoiler.position.set(0, tiangKiri.position.y + 0.06, info.pjg/2 - 0.06);
+                group.add(tiangKiri, tiangKanan, sayapSpoiler);
+            }
+
+            const rodaGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.10, 24);
+            const velgGeo = new THREE.CylinderGeometry(0.09, 0.09, 0.11, 12);
+            
+            const posisiX = [-0.36, 0.36]; 
+            const posisiZ = [-info.pjg * 0.26, info.pjg * 0.26];
+
+            posisiX.forEach(x => {
+                posisiZ.forEach(z => {
+                    const ban = new THREE.Mesh(rodaGeo, hitamMat);
+                    ban.rotation.z = Math.PI / 2;
+                    ban.position.set(x, 0.16, z);
+                    
+                    const velg = new THREE.Mesh(velgGeo, velgMat);
+                    velg.rotation.z = Math.PI / 2;
+                    velg.position.set(x * 1.02, 0.16, z);
+                    
+                    group.add(ban, velg);
+                });
+            });
+        }
+
+        function buatRintanganVariasi(grupObs, jenisAcak) {
+            while(grupObs.children.length > 0){ grupObs.remove(grupObs.children[0]); }
+
+            const rodaGeoLawan = new THREE.CylinderGeometry(0.16, 0.16, 0.10, 12);
+            const menghadapBelakang = Math.random() < 0.50;
+
+            if (jenisAcak < 0.30) { 
+                grupObs.panjangHitbox = 1.5;
+                const warnaLawan = [0x34495e, 0x7f8c8d, 0xd35400, 0x27ae60, 0x2980b9, 0x8e44ad][Math.floor(Math.random() * 6)];
+                const matLawan = new THREE.MeshStandardMaterial({ color: warnaLawan, roughness: 0.3 });
+
+                const bodi = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.30, 1.4), matLawan);
+                bodi.position.y = 0.25;
+                const kabin = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.24, 0.75), matLawan);
+                kabin.position.set(0, 0.43, -0.02);
+                grupObs.add(bodi, kabin);
+
+                const kaca = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.18, 0.02), kacaLawanMat);
+                kaca.position.set(0, 0.43, 0.36); 
+                kaca.rotation.x = 0.35;
+                grupObs.add(kaca);
+
+                const lb1 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 0.02), lampuBelakangMat);
+                lb1.position.set(-0.22, 0.32, 0.705);
+                const lb2 = lb1.clone(); lb2.position.x = 0.22;
+                grupObs.add(lb1, lb2);
+
+                const ld1 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 0.02), lampuMat);
+                ld1.position.set(-0.22, 0.26, -0.705);
+                const ld2 = ld1.clone(); ld2.position.x = 0.22;
+                grupObs.add(ld1, ld2);
+
+                [-0.36, 0.36].forEach(x => {
+                    [-0.42, 0.42].forEach(z => {
+                        const r = new THREE.Mesh(rodaGeoLawan, hitamMat);
+                        r.rotation.z = Math.PI/2; r.position.set(x, 0.16, z);
+                        grupObs.add(r);
+                    });
+                });
+
+                if (menghadapBelakang) grupObs.rotation.y = Math.PI;
+
+            } else if (jenisAcak < 0.55) { 
+                grupObs.panjangHitbox = 3.4; 
+                const warnaBusAcak = [0x1976d2, 0x388e3c, 0xd32f2f, 0xf57c00, 0x7b1fa2][Math.floor(Math.random() * 5)];
+                const matBus = new THREE.MeshStandardMaterial({ color: warnaBusAcak, roughness: 0.4 });
+                
+                const bodiBus = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.90, 3.4), matBus);
+                bodiBus.position.y = 0.60;
+                grupObs.add(bodiBus);
+
+                const kacaBlkBus = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.25, 0.02), kacaLawanMat);
+                kacaBlkBus.position.set(0, 0.85, 1.701);
+                grupObs.add(kacaBlkBus);
+
+                const kacaDepanBus = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.45, 0.02), kacaLawanMat);
+                kacaDepanBus.position.set(0, 0.72, -1.701);
+                grupObs.add(kacaDepanBus);
+
+                const lbBus1 = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.08, 0.02), lampuBelakangMat);
+                lbBus1.position.set(-0.32, 0.35, 1.701);
+                const lbBus2 = lbBus1.clone(); lbBus2.position.x = 0.32;
+                grupObs.add(lbBus1, lbBus2);
+
+                const ldBus1 = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.08, 0.02), lampuMat);
+                ldBus1.position.set(-0.32, 0.28, -1.701);
+                const ldBus2 = ldBus1.clone(); ldBus2.position.x = 0.32;
+                grupObs.add(ldBus1, ldBus2);
+
+                const rodaGedeGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.12, 12);
+                [-0.46, 0.46].forEach(x => {
+                    [-1.0, 0.0, 1.0].forEach(z => {
+                        const r = new THREE.Mesh(rodaGedeGeo, hitamMat);
+                        r.rotation.z = Math.PI/2; r.position.set(x, 0.22, z);
+                        grupObs.add(r);
+                    });
+                });
+
+                if (menghadapBelakang) grupObs.rotation.y = Math.PI;
+
+            } else if (jenisAcak < 0.80) { 
+                grupObs.panjangHitbox = 5.2; 
+                const warnaKepalaAcak = [0xdd2c00, 0x00c853, 0x0091ea, 0xffd600, 0xaa00ff][Math.floor(Math.random() * 5)];
+                const warnaKontainerAcak = [0x006064, 0x3e2723, 0x263238, 0x1b5e20, 0xb71c1c][Math.floor(Math.random() * 5)];
+
+                const matKepalaTruk = new THREE.MeshStandardMaterial({ color: warnaKepalaAcak, roughness: 0.3 }); 
+                const matKontainer = new THREE.MeshStandardMaterial({ color: warnaKontainerAcak, roughness: 0.5 }); 
+                const matSasis = new THREE.MeshStandardMaterial({ color: 0x212121, roughness: 0.8 });
+
+                const sasis = new THREE.Mesh(new THREE.BoxGeometry(0.94, 0.15, 5.0), matSasis);
+                sasis.position.y = 0.28;
+                grupObs.add(sasis);
+
+                const kabinTruk = new THREE.Mesh(new THREE.BoxGeometry(0.94, 0.85, 1.1), matKepalaTruk);
+                kabinTruk.position.set(0, 0.75, -1.85);
+                grupObs.add(kabinTruk);
+
+                const hidungDepan = new THREE.Mesh(new THREE.BoxGeometry(0.94, 0.50, 0.4), matKepalaTruk);
+                hidungDepan.position.set(0, 0.58, -2.5);
+                grupObs.add(hidungDepan);
+
+                const kacaDepanTruk = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.32, 0.02), kacaLawanMat);
+                kacaDepanTruk.position.set(0, 0.95, -2.41); 
+                grupObs.add(kacaDepanTruk);
+
+                const kacaSampingKiriTruk = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.28, 0.55), kacaLawanMat);
+                kacaSampingKiriTruk.position.set(-0.481, 0.95, -1.85);
+                grupObs.add(kacaSampingKiriTruk);
+
+                const kacaSampingKananTruk = kacaSampingKiriTruk.clone();
+                kacaSampingKananTruk.position.x = 0.481;
+                grupObs.add(kacaSampingKananTruk);
+
+                const boxKontainer = new THREE.Mesh(new THREE.BoxGeometry(0.96, 1.15, 3.4), matKontainer);
+                boxKontainer.position.set(0, 0.92, 0.6);
+                grupObs.add(boxKontainer);
+
+                const lbTruk1 = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.06, 0.02), lampuBelakangMat);
+                lbTruk1.position.set(-0.34, 0.35, 2.305);
+                const lbTruk2 = lbTruk1.clone(); lbTruk2.position.x = 0.34;
+                grupObs.add(lbTruk1, lbTruk2);
+
+                const ldTruk1 = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.06, 0.02), lampuMat);
+                ldTruk1.position.set(-0.32, 0.46, -2.705);
+                const ldTruk2 = ldTruk1.clone(); ldTruk2.position.x = 0.32;
+                grupObs.add(ldTruk1, ldTruk2);
+
+                const rodaTrukGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.14, 14);
+                const letakZBan = [-2.1, -1.7, 0.2, 1.5, 2.0];
+                [-0.48, 0.48].forEach(x => {
+                    letakZBan.forEach(z => {
+                        const r = new THREE.Mesh(rodaTrukGeo, hitamMat);
+                        r.rotation.z = Math.PI/2;
+                        r.position.set(x, 0.24, z);
+                        grupObs.add(r);
+                    });
+                });
+
+                if (menghadapBelakang) grupObs.rotation.y = Math.PI;
+
+            } else { 
+                grupObs.panjangHitbox = 1.7; 
+
+                const rambuGrupKiri = buatModelRambu();
+                rambuGrupKiri.position.set(-3.2, 0.0, 2.8); 
+                const rambuGrupKanan = buatModelRambu();
+                rambuGrupKanan.position.set(3.2, 0.0, 2.8);  
+                rambuGrupKanan.rotation.y = Math.PI;
+                grupObs.add(rambuGrupKiri, rambuGrupKanan);
+
+                const matTanahDalam = new THREE.MeshStandardMaterial({ color: 0x3d2b1f, roughness: 0.9 }); 
+                const dasarLubang = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.01, 1.7), matTanahDalam); 
+                dasarLubang.position.set(0, 0.001, 0);
+                grupObs.add(dasarLubang);
+
+                const matAirGenangan = new THREE.MeshStandardMaterial({ color: 0x221a15, roughness: 0.05, metalness: 0.1 });
+                const airGenangan = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.015, 1.0), matAirGenangan); 
+                airGenangan.position.set(-0.15, 0.002, -0.1); 
+                grupObs.add(airGenangan);
+
+                const matAspalHancur = new THREE.MeshStandardMaterial({ color: 0x262626, roughness: 1.0 });
+                const posisiPecahan = [
+                    {x: -0.70, z: 0.4, w: 0.25, l: 0.6},
+                    {x: 0.70, z: -0.3, w: 0.22, l: 0.7},
+                    {x: 0.2, z: -0.85, w: 0.8, l: 0.20},
+                    {x: -0.3, z: 0.85, w: 0.7, l: 0.18}
+                ];
+                
+                posisiPecahan.forEach(p => {
+                    const pecahan = new THREE.Mesh(new THREE.BoxGeometry(p.w, 0.022, p.l), matAspalHancur);
+                    pecahan.position.set(p.x, 0.005, p.z);
+                    pecahan.rotation.y = Math.random() * 0.25; 
+                    grupObs.add(pecahan);
+                });
+
+                const matPagar = new THREE.MeshStandardMaterial({ color: 0xf1c40f, roughness: 0.6 }); 
+                const matGaris = new THREE.MeshStandardMaterial({ color: 0x1a1a1a }); 
+
+                const tiangKiri = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.5, 0.06), hitamMat);
+                tiangKiri.position.set(-0.75, 0.25, 0.9); 
+                const tiangKanan = tiangKiri.clone(); tiangKanan.position.x = 0.75;
+                grupObs.add(tiangKiri, tiangKanan);
+
+                const papanProyek = new THREE.Mesh(new THREE.BoxGeometry(1.56, 0.18, 0.04), matPagar); 
+                papanProyek.position.set(0, 0.38, 0.9);
+                grupObs.add(papanProyek);
+
+                for (let i = -0.65; i <= 0.65; i += 0.25) { 
+                    const strip = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.20, 0.05), matGaris);
+                    strip.position.set(i, 0.38, 0.9);
+                    strip.rotation.z = 0.5; 
+                    grupObs.add(strip);
+                }
+
+                const matTanah = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 1.0 }); 
+                const gundukanUtama = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.28, 5), matTanah); 
+                gundukanUtama.position.set(0.72, 0.11, -0.4);
+                grupObs.add(gundukanUtama);
+            }
+        }
+
+        function buatModelRambu() {
+            const rambuGrup = new THREE.Group();
+            const tiangRambu = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 1.2), hitamMat);
+            tiangRambu.position.y = 0.6; 
+            
+            const papanRambu = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.04), rambuKuningMat);
+            papanRambu.position.set(0, 1.2, 0);
+            papanRambu.rotation.z = Math.PI / 4; 
+
+            const simbolX1 = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.04, 0.05), hitamMat);
+            simbolX1.position.set(0, 1.2, 0.015);
+            simbolX1.rotation.z = 0.4;
+            const simbolX2 = simbolX1.clone();
+            simbolX2.rotation.z = -0.4;
+
+            rambuGrup.add(tiangRambu, papanRambu, simbolX1, simbolX2);
+            return rambuGrup;
+        }
+
+        function windowMarkaNormal(grup) {
+            const lebarMarka = 0.08;
+            const panjangMarka = 4.0;
+            const jedaMarka = 4.0;
+            const geoMarka = new THREE.PlaneGeometry(lebarMarka, panjangMarka);
+
+            for (let zMarka = -25; zMarka < 25; zMarka += (panjangMarka + jedaMarka)) {
+                const garisKiri = new THREE.Mesh(geoMarka, markaJalanMat);
+                garisKiri.rotation.x = -Math.PI / 2;
+                garisKiri.position.set(-1.0, 0.022, zMarka + panjangMarka/2);
+                garisKiri.name = "markaPutus"; 
+                
+                const garisKanan = garisKiri.clone();
+                garisKanan.position.x = 1.0;
+                garisKanan.name = "markaPutus";
+                
+                grup.add(garisKiri, garisKanan);
+            }
+        }
+
+        function gambarZebraCross(grup) {
+            const lebarGarisZebra = 0.35;
+            const panjangGarisZebra = 4.5; 
+            const geoZebra = new THREE.PlaneGeometry(lebarGarisZebra, panjangGarisZebra);
+
+            for (let posX = -2.1; posX <= 2.1; posX += 0.7) {
+                const balokZebra = new THREE.Mesh(geoZebra, markaJalanMat);
+                balokZebra.rotation.x = -Math.PI / 2;
+                balokZebra.position.set(posX, 0.022, 0); 
+                balokZebra.name = "balokZebra"; 
+                grup.add(balokZebra);
+            }
+        }
+
+        function buatModelPolisiTidur() {
+            const grup = new THREE.Group();
+            grup.tipeMekanik = "polisi_tidur";
+            
+            const gundukan = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.6, 8), polisiTidurMat);
+            gundukan.rotation.z = Math.PI / 2;
+            grup.add(gundukan);
+
+            const stripGeo = new THREE.PlaneGeometry(0.12, 0.14);
+            for(let x = -0.6; x <= 0.6; x += 0.4) {
+                const strip = new THREE.Mesh(stripGeo, rambuKuningMat);
+                strip.rotation.x = -Math.PI / 2;
+                strip.position.set(x, 0.061, 0);
+                grup.add(strip);
+            }
+            return grup;
+        }
+
+        function buatModelBoostPad() {
+            const grup = new THREE.Group();
+            grup.tipeMekanik = "boost_pad";
+
+            const bentukV = new THREE.Shape();
+            bentukV.moveTo(-0.4, -0.3);
+            bentukV.lineTo(0, 0.4);
+            bentukV.lineTo(0.4, -0.3);
+            bentukV.lineTo(0.22, -0.3);
+            bentukV.lineTo(0, 0.12);
+            bentukV.lineTo(-0.22, -0.3);
+
+            const extrudeSettings = { depth: 0.05, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 3 };
+            const geometry = new THREE.ExtrudeGeometry(bentukV, extrudeSettings);
+            const material = new THREE.MeshBasicMaterial({ color: 0x00ff66 }); 
+            
+            const panah = new THREE.Mesh(geometry, material);
+            panah.rotation.x = -Math.PI / 2;
+            panah.position.set(0, 0.03, 0);
+            grup.add(panah);
+            
+            return grup;
+        }
+
+        function buatSegmenJalan(zPos) {
+            const grup = new THREE.Group();
+            const jalan = new THREE.Mesh(new THREE.PlaneGeometry(6, 50), roadMat);
+            jalan.rotation.x = -Math.PI / 2;
+            grup.add(jalan);
+
+            let adaZebraCross = false;
+            if (zPos !== 0) {
+                if (cooldownZebra > 0) {
+                    cooldownZebra--; 
+                } else {
+                    if (Math.random() < 0.18) { 
+                        adaZebraCross = true;
+                        cooldownZebra = MIN_COOLDOWN_ZEBRA; 
+                    }
+                }
+            }
+            grup.isZebraCross = adaZebraCross; 
+
+            if (adaZebraCross) {
+                gambarZebraCross(grup);
+            } else {
+                windowMarkaNormal(grup);
+            }
+
+            const geoPaku = new THREE.BoxGeometry(0.08, 0.02, 0.25);
+            for (let zRef = -24; zRef <= 24; zRef += 6) {
+                const pakuKiri = new THREE.Mesh(geoPaku, reflektorMat);
+                pakuKiri.position.set(-2.94, 0.025, zRef);
+                const pakuKanan = pakuKiri.clone(); pakuKanan.position.x = 2.94;
+                grup.add(pakuKiri, pakuKanan);
+            }
+
+            const trotKiri = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.2, 50), sideMat);
+            trotKiri.position.set(-3.75, 0.1, 0);
+            const trotKanan = trotKiri.clone(); trotKanan.position.set(3.75, 0.1, 0);
+            grup.add(trotKiri, trotKanan);
+
+            const rumputKiri = new THREE.Mesh(new THREE.PlaneGeometry(25, 50), grassMat);
+            rumputKiri.rotation.x = -Math.PI / 2; rumputKiri.position.set(-17, 0.02, 0); 
+            const rumputKanan = rumputKiri.clone(); rumputKanan.position.x = 17; 
+            grup.add(rumputKiri, rumputKanan);
+
+            const tembokSampingKiri = new THREE.Mesh(new THREE.BoxGeometry(0.4, 2.2, 50.0), tembokMat);
+            tembokSampingKiri.position.set(-7.0, 1.1, 0); 
+            
+            const tembokSampingKanan = new THREE.Mesh(new THREE.BoxGeometry(0.4, 2.2, 50.0), tembokMat);
+            tembokSampingKanan.position.set(7.0, 1.1, 0); 
+            
+            grup.add(tembokSampingKiri, tembokSampingKanan);
+
+            // --- DEKORASI RUMAH, LAMPU, DAN BUNGA ---
+            for (let i = -20; i <= 20; i += 20) {
+                const rumahKiri = templateRumahDetail(); 
+                rumahKiri.position.set(-5.2, 1.1, i);
+                
+                const rumahKanan = templateRumahDetail(); 
+                rumahKanan.position.set(5.2, 1.1, i);
+                rumahKanan.rotation.y = Math.PI; 
+
+                // Tanaman pohon samping rumah
+                const tanKiri = templateTanaman(); tanKiri.position.set(-4.2, 0.2, i + 5);
+                const tanKanan = templateTanaman(); tanKanan.position.set(4.2, 0.2, i - 5);
+                
+                // Tambahkan bunga-bunga bervariasi di area rumput kiri & kanan dekat rumah
+                for (let b = 0; b < 4; b++) {
+                    // Sisi Kiri
+                    const flwKiri = templateBungaDetail();
+                    let acakXKiri = -4.0 - Math.random() * 1.5; // Menyebar di rumput samping
+                    let acakZKiri = i + (Math.random() * 12 - 6); // Menyebar di sekitar Z rumah
+                    flwKiri.position.set(acakXKiri, 0.1, acakZKiri);
+                    grup.add(flwKiri);
+
+                    // Sisi Kanan
+                    const flwKanan = templateBungaDetail();
+                    let acakXKanan = 4.0 + Math.random() * 1.5;
+                    let acakZKanan = i + (Math.random() * 12 - 6);
+                    flwKanan.position.set(acakXKanan, 0.1, acakZKanan);
+                    grup.add(flwKanan);
+                }
+
+                // Posisi Lampu Jalan Selang-Seling (+10 unit dari rumah)
+                let posisiZLampu = i + 10;
+                if (posisiZLampu <= 24) { 
+                    const lampuKiri = templateLampuJalan(); 
+                    lampuKiri.position.set(-3.6, 0.2, posisiZLampu);
+                    
+                    const lampuKanan = templateLampuJalan(); 
+                    lampuKanan.position.set(3.6, 0.2, posisiZLampu);
+                    lampuKanan.rotation.y = Math.PI; 
+                    
+                    grup.add(lampuKiri, lampuKanan);
+                }
+                
+                grup.add(rumahKiri, rumahKanan, tanKiri, tanKanan);
+            }
+            grup.position.z = zPos;
+            scene.add(grup);
+            segmenLingkungan.push(grup);
+        }
+
+        function templateRumahDetail() {
+            const grupRmh = new THREE.Group();
+            const lebarBdn = 1.8 + Math.random() * 0.4;
+            const tinggiBdn = 1.3 + Math.random() * 0.3;
+            const pjgBdn = 2.2 + Math.random() * 0.6;
+
+            const bdn = new THREE.Mesh(new THREE.BoxGeometry(lebarBdn, tinggiBdn, pjgBdn), rumahMat);
+            bdn.position.y = tinggiBdn / 2 - 1.1; 
+            grupRmh.add(bdn);
+
+            const atp = new THREE.Mesh(new THREE.ConeGeometry(lebarBdn * 0.8, 0.8, 4), atapsMat);
+            atp.position.set(0, bdn.position.y + tinggiBdn/2 + 0.4, 0);
+            atp.rotation.y = Math.PI / 4;
+            grupRmh.add(atp);
+
+            const pnt = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.8, 0.45), pintuMat);
+            pnt.position.set(lebarBdn/2 + 0.01, bdn.position.y - tinggiBdn/2 + 0.4, 0.2);
+            grupRmh.add(pnt);
+
+            const kc1 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.4, 0.5), detailKacaMat);
+            kc1.position.set(lebarBdn/2 + 0.01, bdn.position.y + 0.1, -0.4);
+            grupRmh.add(kc1);
+            return grupRmh;
+        }
+
+        function templateTanaman() {
+            const grupTan = new THREE.Group();
+            const batang = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.08, 0.7), pintuMat);
+            batang.position.y = 0.35;
+            
+            const daun = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 8), daunMat);
+            daun.position.y = 0.85;
+            daun.scale.set(1, 1.2, 1);
+            
+            grupTan.add(batang, daun);
+            return grupTan;
+        }
+
+        // --- FUNGSI MODEL BUNGA BERVARIASI (UKURAN LEBIH BESAR) ---
+        function templateBungaDetail() {
+            const grupBunga = new THREE.Group();
+
+            // Tangkai kecil bunga agak tebal & tinggi sedikit biar keliatan dari jauh
+            const tinggiTangkai = 0.25 + Math.random() * 0.15;
+            const tangkai = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, tinggiTangkai, 5), tangkaiBungaMat);
+            tangkai.position.y = tinggiTangkai / 2;
+            grupBunga.add(tangkai);
+
+            // Variasi Warna Kelopak (Merah, Kuning, Putih)
+            const penentuWarna = Math.random();
+            let materialKelopak = bungaMerahMat;
+            if (penentuWarna < 0.33) {
+                materialKelopak = bungaKuningMat;
+            } else if (penentuWarna < 0.66) {
+                materialKelopak = bungaPutihMat;
+            }
+
+            // Inti tengah putik bunga (Kuning mencolok)
+            const pusatBunga = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 6), rambuKuningMat);
+            pusatBunga.position.y = tinggiTangkai;
+            grupBunga.add(pusatBunga);
+
+            // Bikin kelopak melingkar dengan ukuran yang digedein (0.12)
+            const jumlahKelopak = 5;
+            const ukuranKelopak = 0.12;
+            const geoKelopak = new THREE.BoxGeometry(ukuranKelopak, 0.04, ukuranKelopak);
+
+            for (let i = 0; i < jumlahKelopak; i++) {
+                const kelopak = new THREE.Mesh(geoKelopak, materialKelopak);
+                let sudut = (i / jumlahKelopak) * Math.PI * 2;
+                // Jarak sebar kelopak digeser keluar (0.09) biar mekar lebar
+                kelopak.position.set(
+                    Math.cos(sudut) * 0.09,
+                    tinggiTangkai,
+                    Math.sin(sudut) * 0.09
+                );
+                kelopak.rotation.y = -sudut;
+                grupBunga.add(kelopak);
+            }
+
+            // Variasi skala pengali akhir dinaikkan biar makin kelihatan padat
+            let skalaAcak = 1.2 + Math.random() * 0.6;
+            grupBunga.scale.set(skalaAcak, skalaAcak, skalaAcak);
+
+            return grupBunga;
+        }
+
+        function templateLampuJalan() {
+            const grupLmp = new THREE.Group();
+            const tiang = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, 2.2), hitamMat);
+            tiang.position.y = 1.1;
+
+            const lengan = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.04, 0.04), hitamMat);
+            lengan.position.set(0.18, 2.15, 0);
+
+            const rumahLampu = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.06, 0.12), hitamMat);
+            rumahLampu.position.set(0.35, 2.12, 0);
+
+            const bohlam = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.02, 0.08), lampuJalanMat);
+            bohlam.position.set(0.35, 2.09, 0);
+
+            grupLmp.add(tiang, lengan, rumahLampu, bohlam);
+            return grupLmp;
+        }
+
+        let timerSpawn = 0;
+        function updateSpawning(delta) {
+            timerSpawn += delta;
+            let jedaDinamis = 29.0 / (waktuBoost > 0 ? 95.0 : kecepatan); 
+
+            if (timerSpawn > jedaDinamis) { 
+                timerSpawn = 0;
+                let areaSpawnZ = -115;
+                let segmenZebraTerdeteksi = false;
+                
+                for(let i=0; i<segmenLingkungan.length; i++) {
+                    let s = segmenLingkungan[i];
+                    if(Math.abs(s.position.z - areaSpawnZ) < 25 && s.isZebraCross === true) {
+                        segmenZebraTerdeteksi = true;
+                        break;
+                    }
+                }
+
+                let penentuModel = Math.random();
+
+                if (penentuModel < 0.60 && !segmenZebraTerdeteksi) { 
+                    let jalur1 = Math.floor(Math.random() * 3);
+                    const rintangan1 = new THREE.Group();
+                    buatRintanganVariasi(rintangan1, Math.random());
+                    rintangan1.position.set(posisiJalur[jalur1], 0, areaSpawnZ);
+                    scene.add(rintangan1);
+                    daftarRintangan.push(rintangan1);
+
+                    if (Math.random() < 0.40 && waktuBoost <= 0) { 
+                        let jalur2 = (jalur1 + (Math.random() < 0.5 ? 1 : 2)) % 3;
+                        const rintangan2 = new THREE.Group();
+                        buatRintanganVariasi(rintangan2, Math.random());
+                        rintangan2.position.set(posisiJalur[jalur2], 0, areaSpawnZ);
+                        scene.add(rintangan2);
+                        daftarRintangan.push(rintangan2);
+                    }
+                } else if (penentuModel < 0.82) {
+                    let jalurAcak = Math.floor(Math.random() * 3);
+                    let jumlahKoinAcak = Math.floor(Math.random() * 3) + 3; 
+                    for(let k = 0; k < jumlahKoinAcak; k++) {
+                        const koin = new THREE.Mesh(coinGeo, coinMat);
+                        koin.rotation.x = Math.PI / 2;
+                        koin.position.set(posisiJalur[jalurAcak], 0.35, areaSpawnZ - (k * 2.4));
+                        scene.add(koin);
+                        daftarKoinObj.push(koin);
+                    }
+                } else {
+                    let jalurMekanik = Math.floor(Math.random() * 3);
+                    let jenisMekanik = Math.random();
+                    let objekMekanik;
+
+                    if (jenisMekanik < 0.50) {
+                        objekMekanik = buatModelPolisiTidur();
+                        objekMekanik.position.set(posisiJalur[jalurMekanik], 0, areaSpawnZ);
+                        scene.add(objekMekanik);
+                        daftarMekanikJalan.push(objekMekanik);
+                    } else {
+                        if (cooldownBoost > 0) {
+                            cooldownBoost--; 
+                            objekMekanik = buatModelPolisiTidur();
+                            objekMekanik.position.set(posisiJalur[jalurMekanik], 0, areaSpawnZ);
+                        } else {
+                            objekMekanik = buatModelBoostPad();
+                            objekMekanik.position.set(posisiJalur[jalurMekanik], 0, areaSpawnZ);
+                            cooldownBoost = MIN_COOLDOWN_BOOST; 
+                        }
+                        scene.add(objekMekanik);
+                        daftarMekanikJalan.push(objekMekanik);
+                    }
+                }
+            }
+        }
+
+        function gantiGudang(arah) {
+            mobilDilihat += arah;
+            if (mobilDilihat < 0) mobilDilihat = daftarMobil.length - 1;
+            if (mobilDilihat >= daftarMobil.length) mobilDilihat = 0;
+            
+            const mob = daftarMobil[mobilDilihat];
+            document.getElementById('menu-car-name').innerText = mob.nama;
+            
+            const btnBeli = document.getElementById('btn-beli');
+            if (mob.dimiliki) {
+                btnBeli.style.background = "#4CAF50";
+                btnBeli.innerText = mobilTerpilih === mobilDilihat ? "TERPILIH" : "GUNAKAN";
+            } else {
+                btnBeli.style.background = "#ff9800";
+                btnBeli.innerText = `BELI (${mob.harga} Koin)`;
+            }
+        }
+
+        function eksekusiToko() {
+            const mob = daftarMobil[mobilDilihat];
+            if (mob.dimiliki) {
+                mobilTerpilih = mobilDilihat;
+                buildCarMesh(mobilPemainContainer, mob);
+                document.getElementById('carLabel').innerText = `Mobil: ${mob.nama}`;
+                simpanProgress(); 
+            } else {
+                if (totalKoin >= mob.harga) {
+                    totalKoin -= mob.harga;
+                    mob.dimiliki = true;
+                    mobilTerpilih = mobilDilihat;
+                    buildCarMesh(mobilPemainContainer, mob);
+                    
+                    document.getElementById('carLabel').innerText = `Mobil: ${mob.nama}`;
+                    document.getElementById('menu-coin-total').innerText = `Koinmu: ${totalKoin}`;
+                    simpanProgress(); 
+                } else {
+                    alert("Koin kamu belum cukup, kumpulkan dulu!");
+                }
+            }
+            gantiGudang(0);
+        }
+
+        function mulaiGame() {
+            document.getElementById('menu').style.display = 'none';
+            document.getElementById('hud').style.display = 'block';
+            skor = 0; koinSesi = 0; kecepatan = kecepatanAwal; jalurSekarang = 1;
+            waktuBoost = 0; bonusKecepatanBoost = 0;
+            document.getElementById('boost-indicator').style.display = 'none';
+            mobilPemainContainer.position.x = posisiJalur[jalurSekarang];
+            
+            camera.fov = 60;
+            camera.position.set(0, 3.0, 4.6);
+            camera.updateProjectionMatrix();
+
+            gameBerjalan = true;
+        }
+
+        function gameOver() {
+            gameBerjalan = false;
+            let rekorPecah = false;
+            if (skor > skorMax) {
+                skorMax = skor;
+                rekorPecah = true;
+            }
+
+            totalKoin += koinSesi;
+            document.getElementById('menu-coin-total').innerText = `Koinmu: ${totalKoin}`;
+            document.getElementById('menu-high-score').innerText = `Skor Tertinggi: ${Math.floor(skorMax)}`;
+            simpanProgress(); 
+
+            let pesanRekor = rekorPecah ? `\n\n🔥 GOKIL! REKOR BARU PECAH! 🔥` : ``;
+            alert(`Yahh\nKetabrak\nWkwkkwk\n\nSkor Akhirmu: ${Math.floor(skor)}!${pesanRekor}`);
+            
+            document.getElementById('hud').style.display = 'none';
+            document.getElementById('menu').style.display = 'flex';
+            
+            daftarRintangan.forEach(o => scene.remove(o));
+            daftarKoinObj.forEach(c => scene.remove(c));
+            daftarMekanikJalan.forEach(m => scene.remove(m));
+            daftarRintangan = [];
+            daftarKoinObj = [];
+            daftarMekanikJalan = [];
+            gantiGudang(0);
+        }
+
+        let mulaiX = 0;
+        window.addEventListener('touchstart', e => { mulaiX = e.touches[0].clientX; });
+        window.addEventListener('touchend', e => {
+            if (!gameBerjalan) return;
+            let selisihX = e.changedTouches[0].clientX - mulaiX;
+            if (Math.abs(selisihX) > 30) {
+                if (selisihX > 0 && jalurSekarang < 2) jalurSekarang++; 
+                if (selisihX < 0 && jalurSekarang > 0) jalurSekarang--; 
+            }
+        });
+
+        window.addEventListener('keydown', e => {
+            if (!gameBerjalan) return;
+            if ((e.key === "ArrowLeft" || e.key === "a") && jalurSekarang > 0) jalurSekarang--;
+            if ((e.key === "ArrowRight" || e.key === "d") && jalurSekarang < 2) jalurSekarang++;
+        });
+
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (!scene || !camera || !renderer) return;
+
+            const delta = clock.getDelta();
+
+            if (gameBerjalan) {
+                if (kecepatan < kecepatanMaks) {
+                    kecepatan += delta * 1.5; 
+                }
+
+                let kecepatanEfektif = kecepatan;
+
+                if (waktuBoost > 0) {
+                    waktuBoost -= delta;
+                    kecepatanEfektif = kecepatan + bonusKecepatanBoost; 
+                    document.getElementById('boost-indicator').style.display = 'block';
+                    
+                    if (waktuBoost <= 0) {
+                        document.getElementById('boost-indicator').style.display = 'none';
+                        bonusKecepatanBoost = 0;
+                    }
+                }
+
+                let rasioSkor = kecepatanEfektif / kecepatanAwal;
+                let penambahSkor = Math.pow(rasioSkor, 2.2) * 3.0;
+                skor += delta * penambahSkor;
+
+                document.getElementById('scoreLabel').innerText = `Skor: ${Math.floor(skor)}`;
+                document.getElementById('coinLabel').innerText = `Koin: ${koinSesi}`;
+                document.getElementById('speedo').innerText = `Kecepatan: ${Math.floor(kecepatanEfektif * 2.3)} KM/H`;
+
+                let rasioKecepatan = (kecepatanEfektif - kecepatanAwal) / ((kecepatanMaks * 1.5) - kecepatanAwal); 
+                camera.fov = 60 + (rasioKecepatan * 25); 
+                camera.position.z = 4.6 + (rasioKecepatan * 1.8); 
+                camera.updateProjectionMatrix();
+
+                mobilPemainContainer.position.x += (posisiJalur[jalurSekarang] - mobilPemainContainer.position.x) * 0.28;
+
+                updateSpawning(delta);
+
+                for (let i = daftarMekanikJalan.length - 1; i >= 0; i--) {
+                    let mek = daftarMekanikJalan[i];
+                    mek.position.z += kecepatanEfektif * delta;
+
+                    if (Math.abs(mek.position.z - mobilPemainContainer.position.z) < 0.6 && 
+                        Math.abs(mek.position.x - mobilPemainContainer.position.x) < 0.55) {
+                        
+                        if (mek.tipeMekanik === "polisi_tidur" && waktuBoost <= 0) {
+                            kecepatan = Math.max(kecepatanAwal, kecepatan * 0.5); 
+                            mobilPemainContainer.position.y = 0.18;
+                        } else if (mek.tipeMekanik === "boost_pad") {
+                            waktuBoost = DURASI_BOOST; 
+                            bonusKecepatanBoost = kecepatan * 0.5; 
+                        }
+                        
+                        scene.remove(mek);
+                        daftarMekanikJalan.splice(i, 1);
+                        continue;
+                    }
+
+                    if (mek.position.z > 10) {
+                        scene.remove(mek);
+                        daftarMekanikJalan.splice(i, 1);
+                    }
+                }
+
+                if (mobilPemainContainer.position.y > 0) {
+                    mobilPemainContainer.position.y -= delta * 1.2;
+                } else {
+                    mobilPemainContainer.position.y = 0;
+                }
+
+                for (let i = daftarRintangan.length - 1; i >= 0; i--) {
+                    let obs = daftarRintangan[i];
+                    obs.position.z += kecepatanEfektif * delta;
+                    let batasanZ = obs.panjangHitbox ? obs.panjangHitbox : 1.4;
+
+                    if (Math.abs(obs.position.z - mobilPemainContainer.position.z) < batasanZ && 
+                        Math.abs(obs.position.x - mobilPemainContainer.position.x) < 0.62) {
+                        gameOver();
+                        return;
+                    }
+
+                    if (obs.position.z > 12) {
+                        scene.remove(obs);
+                        daftarRintangan.splice(i, 1);
+                    }
+                }
+
+                for (let i = daftarKoinObj.length - 1; i >= 0; i--) {
+                    let koin = daftarKoinObj[i];
+                    koin.position.z += kecepatanEfektif * delta;
+                    koin.rotation.y += delta * 3.5;
+
+                    if (Math.abs(koin.position.z - mobilPemainContainer.position.z) < 0.9 && 
+                        Math.abs(koin.position.x - mobilPemainContainer.position.x) < 0.52) {
+                        koinSesi++;
+                        scene.remove(koin);
+                        daftarKoinObj.splice(i, 1);
+                        continue;
+                    }
+
+                    if (koin.position.z > 8) {
+                        scene.remove(koin);
+                        daftarKoinObj.splice(i, 1);
+                    }
+                }
+
+                segmenLingkungan.forEach(grup => {
+                    grup.position.z += kecepatanEfektif * delta;
+                    if (grup.position.z > 50) {
+                        grup.position.z -= 250; 
+                        let acakLagi = (cooldownZebra > 0) ? (cooldownZebra--, false) : (Math.random() < 0.18 ? (cooldownZebra = MIN_COOLDOWN_ZEBRA, true) : false);
+                        grup.isZebraCross = acakLagi;
+
+                        let objekLama = [];
+                        grup.children.forEach(child => {
+                            if (child.name === "markaPutus" || child.name === "balokZebra") objekLama.push(child);
+                        });
+                        objekLama.forEach(obj => grup.remove(obj));
+                        if (acakLagi) gambarZebraCross(grup); else windowMarkaNormal(grup);
+                    }
+                });
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            if (!camera || !renderer) return;
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
