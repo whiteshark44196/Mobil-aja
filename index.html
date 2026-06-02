@@ -94,6 +94,7 @@
         let skor = 0;
         let koinSesi = 0;
         let gameBerjalan = false;
+        let tabAktif = true; // Pendeteksi fokus layar baru
         
         const kecepatanAwal = 30.0;
         let kecepatan = kecepatanAwal; 
@@ -132,7 +133,6 @@
         let roadMat, sideMat, grassMat, coinGeo, coinMat, rumahMat, atapsMat, pintuMat, detailKacaMat, daunMat, kacaMat, hitamMat, lampuMat, lampuBelakangMat, lampuJalanMat, kacaLawanMat, velgMat, matahariMat, markaJalanMat, reflektorMat, rambuKuningMat;
         let polisiTidurMat, tembokMat;
 
-        // Material khusus bunga bervariasi
         let bungaMerahMat, bungaKuningMat, bungaPutihMat, tangkaiBungaMat;
 
         function simpanProgress() {
@@ -191,7 +191,7 @@
             polisiTidurMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 });
             tembokMat = new THREE.MeshStandardMaterial({ color: 0x95a5a6, roughness: 0.7 });
 
-            rumahMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.5 });
+            blueprintRumahMat = rumahMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.5 });
             atapsMat = new THREE.MeshStandardMaterial({ color: 0xb83b2e, roughness: 0.4 });
             pintuMat = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.6 });
             detailKacaMat = new THREE.MeshStandardMaterial({ color: 0x223344, roughness: 0.2 });
@@ -210,7 +210,6 @@
             matahariMat = new THREE.MeshBasicMaterial({ color: 0xffeb3b, fog: false }); 
             rambuKuningMat = new THREE.MeshStandardMaterial({ color: 0xf1c40f, roughness: 0.5 });
 
-            // Inisialisasi material bunga
             bungaMerahMat = new THREE.MeshStandardMaterial({ color: 0xe74c3c, roughness: 0.6 });
             bungaKuningMat = new THREE.MeshStandardMaterial({ color: 0xf1c40f, roughness: 0.6 });
             bungaPutihMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 });
@@ -695,7 +694,6 @@
             
             grup.add(tembokSampingKiri, tembokSampingKanan);
 
-            // --- DEKORASI RUMAH, LAMPU, DAN BUNGA ---
             for (let i = -20; i <= 20; i += 20) {
                 const rumahKiri = templateRumahDetail(); 
                 rumahKiri.position.set(-5.2, 1.1, i);
@@ -704,20 +702,16 @@
                 rumahKanan.position.set(5.2, 1.1, i);
                 rumahKanan.rotation.y = Math.PI; 
 
-                // Tanaman pohon samping rumah
                 const tanKiri = templateTanaman(); tanKiri.position.set(-4.2, 0.2, i + 5);
                 const tanKanan = templateTanaman(); tanKanan.position.set(4.2, 0.2, i - 5);
                 
-                // Tambahkan bunga-bunga bervariasi di area rumput kiri & kanan dekat rumah
                 for (let b = 0; b < 4; b++) {
-                    // Sisi Kiri
                     const flwKiri = templateBungaDetail();
-                    let acakXKiri = -4.0 - Math.random() * 1.5; // Menyebar di rumput samping
-                    let acakZKiri = i + (Math.random() * 12 - 6); // Menyebar di sekitar Z rumah
+                    let acakXKiri = -4.0 - Math.random() * 1.5; 
+                    let acakZKiri = i + (Math.random() * 12 - 6); 
                     flwKiri.position.set(acakXKiri, 0.1, acakZKiri);
                     grup.add(flwKiri);
 
-                    // Sisi Kanan
                     const flwKanan = templateBungaDetail();
                     let acakXKanan = 4.0 + Math.random() * 1.5;
                     let acakZKanan = i + (Math.random() * 12 - 6);
@@ -725,7 +719,6 @@
                     grup.add(flwKanan);
                 }
 
-                // Posisi Lampu Jalan Selang-Seling (+10 unit dari rumah)
                 let posisiZLampu = i + 10;
                 if (posisiZLampu <= 24) { 
                     const lampuKiri = templateLampuJalan(); 
@@ -783,17 +776,14 @@
             return grupTan;
         }
 
-        // --- FUNGSI MODEL BUNGA BERVARIASI (UKURAN LEBIH BESAR) ---
         function templateBungaDetail() {
             const grupBunga = new THREE.Group();
 
-            // Tangkai kecil bunga agak tebal & tinggi sedikit biar keliatan dari jauh
             const tinggiTangkai = 0.25 + Math.random() * 0.15;
             const tangkai = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, tinggiTangkai, 5), tangkaiBungaMat);
             tangkai.position.y = tinggiTangkai / 2;
             grupBunga.add(tangkai);
 
-            // Variasi Warna Kelopak (Merah, Kuning, Putih)
             const penentuWarna = Math.random();
             let materialKelopak = bungaMerahMat;
             if (penentuWarna < 0.33) {
@@ -802,12 +792,10 @@
                 materialKelopak = bungaPutihMat;
             }
 
-            // Inti tengah putik bunga (Kuning mencolok)
             const pusatBunga = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 6), rambuKuningMat);
             pusatBunga.position.y = tinggiTangkai;
             grupBunga.add(pusatBunga);
 
-            // Bikin kelopak melingkar dengan ukuran yang digedein (0.12)
             const jumlahKelopak = 5;
             const ukuranKelopak = 0.12;
             const geoKelopak = new THREE.BoxGeometry(ukuranKelopak, 0.04, ukuranKelopak);
@@ -815,7 +803,6 @@
             for (let i = 0; i < jumlahKelopak; i++) {
                 const kelopak = new THREE.Mesh(geoKelopak, materialKelopak);
                 let sudut = (i / jumlahKelopak) * Math.PI * 2;
-                // Jarak sebar kelopak digeser keluar (0.09) biar mekar lebar
                 kelopak.position.set(
                     Math.cos(sudut) * 0.09,
                     tinggiTangkai,
@@ -825,7 +812,6 @@
                 grupBunga.add(kelopak);
             }
 
-            // Variasi skala pengali akhir dinaikkan biar makin kelihatan padat
             let skalaAcak = 1.2 + Math.random() * 0.6;
             grupBunga.scale.set(skalaAcak, skalaAcak, skalaAcak);
 
@@ -977,6 +963,7 @@
             camera.position.set(0, 3.0, 4.6);
             camera.updateProjectionMatrix();
 
+            clock.getDelta(); // Reset internal clock sebelum mulai
             gameBerjalan = true;
         }
 
@@ -1025,6 +1012,16 @@
             if ((e.key === "ArrowRight" || e.key === "d") && jalurSekarang < 2) jalurSekarang++;
         });
 
+        // Pengunci Latar Belakang Otomatis (Visibility API)
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden) {
+                tabAktif = false;
+            } else {
+                tabAktif = true;
+                clock.getDelta(); // Bersihkan sisa waktu mati lampu pas masuk lagi
+            }
+        });
+
         const clock = new THREE.Clock();
 
         function animate() {
@@ -1033,7 +1030,8 @@
 
             const delta = clock.getDelta();
 
-            if (gameBerjalan) {
+            // Jika game tidak jalan atau tab lagi diminimize, hentikan total mekanik gamenya
+            if (gameBerjalan && tabAktif) {
                 if (kecepatan < kecepatanMaks) {
                     kecepatan += delta * 1.5; 
                 }
