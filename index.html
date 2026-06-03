@@ -94,7 +94,7 @@
         let skor = 0;
         let koinSesi = 0;
         let gameBerjalan = false;
-        let tabAktif = true; // Pendeteksi fokus layar baru
+        let tabAktif = true;
         
         const kecepatanAwal = 30.0;
         let kecepatan = kecepatanAwal; 
@@ -251,7 +251,8 @@
 
             mobilPemainContainer = new THREE.Group();
             buildCarMesh(mobilPemainContainer, daftarMobil[mobilTerpilih]);
-            mobilPemainContainer.position.set(posisiJalur[jalurSekarang], 0, 0);
+            // Naikkan koordinat Y mobil sedikit (0.05) supaya bannya presisi menggelinding di atas marka jalan
+            mobilPemainContainer.position.set(posisiJalur[jalurSekarang], 0.05, 0);
             scene.add(mobilPemainContainer);
             
             document.getElementById('carLabel').innerText = `Mobil: ${daftarMobil[mobilTerpilih].nama}`;
@@ -499,12 +500,14 @@
 
                 const matTanahDalam = new THREE.MeshStandardMaterial({ color: 0x3d2b1f, roughness: 0.9 }); 
                 const dasarLubang = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.01, 1.7), matTanahDalam); 
-                dasarLubang.position.set(0, 0.001, 0);
+                // Diperbaiki: Koordinat Y dinaikkan ke 0.041 agar lapisan lubang tidak bertabrakan dengan aspal dasar
+                dasarLubang.position.set(0, 0.041, 0);
                 grupObs.add(dasarLubang);
 
                 const matAirGenangan = new THREE.MeshStandardMaterial({ color: 0x221a15, roughness: 0.05, metalness: 0.1 });
                 const airGenangan = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.015, 1.0), matAirGenangan); 
-                airGenangan.position.set(-0.15, 0.002, -0.1); 
+                // Diperbaiki: Koordinat Y dinaikkan ke 0.045 agar air genangan berada persis di atas lapisan dasar lubang
+                airGenangan.position.set(-0.15, 0.045, -0.1); 
                 grupObs.add(airGenangan);
 
                 const matAspalHancur = new THREE.MeshStandardMaterial({ color: 0x262626, roughness: 1.0 });
@@ -517,7 +520,8 @@
                 
                 posisiPecahan.forEach(p => {
                     const pecahan = new THREE.Mesh(new THREE.BoxGeometry(p.w, 0.022, p.l), matAspalHancur);
-                    pecahan.position.set(p.x, 0.005, p.z);
+                    // Diperbaiki: Koordinat Y dinaikkan ke 0.048 agar pecahan pinggiran aspal muncul rapi di permukaan teratas
+                    pecahan.position.set(p.x, 0.048, p.z);
                     pecahan.rotation.y = Math.random() * 0.25; 
                     grupObs.add(pecahan);
                 });
@@ -576,7 +580,8 @@
             for (let zMarka = -25; zMarka < 25; zMarka += (panjangMarka + jedaMarka)) {
                 const garisKiri = new THREE.Mesh(geoMarka, markaJalanMat);
                 garisKiri.rotation.x = -Math.PI / 2;
-                garisKiri.position.set(-1.0, 0.022, zMarka + panjangMarka/2);
+                // Diperbaiki: Koordinat Y dinaikkan ke 0.035 biar marka garis putus-putus mengambang aman di atas aspal
+                garisKiri.position.set(-1.0, 0.035, zMarka + panjangMarka/2);
                 garisKiri.name = "markaPutus"; 
                 
                 const garisKanan = garisKiri.clone();
@@ -595,7 +600,8 @@
             for (let posX = -2.1; posX <= 2.1; posX += 0.7) {
                 const balokZebra = new THREE.Mesh(geoZebra, markaJalanMat);
                 balokZebra.rotation.x = -Math.PI / 2;
-                balokZebra.position.set(posX, 0.022, 0); 
+                // Diperbaiki: Koordinat Y dinaikkan ke 0.038 agar balok putih zebra cross berada di atas aspal & tidak balapan layer
+                balokZebra.position.set(posX, 0.038, 0); 
                 balokZebra.name = "balokZebra"; 
                 grup.add(balokZebra);
             }
@@ -607,13 +613,14 @@
             
             const gundukan = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.6, 8), polisiTidurMat);
             gundukan.rotation.z = Math.PI / 2;
+            gundukan.position.y = 0.03; // Disesuaikan agar pas muncul di aspal
             grup.add(gundukan);
 
             const stripGeo = new THREE.PlaneGeometry(0.12, 0.14);
             for(let x = -0.6; x <= 0.6; x += 0.4) {
                 const strip = new THREE.Mesh(stripGeo, rambuKuningMat);
                 strip.rotation.x = -Math.PI / 2;
-                strip.position.set(x, 0.061, 0);
+                strip.position.set(x, 0.082, 0);
                 grup.add(strip);
             }
             return grup;
@@ -637,7 +644,7 @@
             
             const panah = new THREE.Mesh(geometry, material);
             panah.rotation.x = -Math.PI / 2;
-            panah.position.set(0, 0.03, 0);
+            panah.position.set(0, 0.04, 0); // Diperbaiki sedikit ke 0.04 agar tidak berkedip
             grup.add(panah);
             
             return grup;
@@ -957,13 +964,14 @@
             skor = 0; koinSesi = 0; kecepatan = kecepatanAwal; jalurSekarang = 1;
             waktuBoost = 0; bonusKecepatanBoost = 0;
             document.getElementById('boost-indicator').style.display = 'none';
-            mobilPemainContainer.position.x = posisiJalur[jalurSekarang];
+            // Dipastikan saat mulai game, koordinat Y mobil tetap di ketinggian mengambang yang pas (0.05)
+            mobilPemainContainer.position.set(posisiJalur[jalurSekarang], 0.05, 0);
             
             camera.fov = 60;
             camera.position.set(0, 3.0, 4.6);
             camera.updateProjectionMatrix();
 
-            clock.getDelta(); // Reset internal clock sebelum mulai
+            clock.getDelta(); 
             gameBerjalan = true;
         }
 
@@ -1012,13 +1020,12 @@
             if ((e.key === "ArrowRight" || e.key === "d") && jalurSekarang < 2) jalurSekarang++;
         });
 
-        // Pengunci Latar Belakang Otomatis (Visibility API)
         document.addEventListener("visibilitychange", () => {
             if (document.hidden) {
                 tabAktif = false;
             } else {
                 tabAktif = true;
-                clock.getDelta(); // Bersihkan sisa waktu mati lampu pas masuk lagi
+                clock.getDelta(); 
             }
         });
 
@@ -1030,7 +1037,6 @@
 
             const delta = clock.getDelta();
 
-            // Jika game tidak jalan atau tab lagi diminimize, hentikan total mekanik gamenya
             if (gameBerjalan && tabAktif) {
                 if (kecepatan < kecepatanMaks) {
                     kecepatan += delta * 1.5; 
@@ -1075,7 +1081,8 @@
                         
                         if (mek.tipeMekanik === "polisi_tidur" && waktuBoost <= 0) {
                             kecepatan = Math.max(kecepatanAwal, kecepatan * 0.5); 
-                            mobilPemainContainer.position.y = 0.18;
+                            // Diperbaiki: Saat kena polisi tidur, batas bawah membal bodi mobil dikembalikan ke posisi 0.23 (bukan 0.18 lagi) agar presisi di atas jalan baru
+                            mobilPemainContainer.position.y = 0.23;
                         } else if (mek.tipeMekanik === "boost_pad") {
                             waktuBoost = DURASI_BOOST; 
                             bonusKecepatanBoost = kecepatan * 0.5; 
@@ -1092,10 +1099,10 @@
                     }
                 }
 
-                if (mobilPemainContainer.position.y > 0) {
+                if (mobilPemainContainer.position.y > 0.05) {
                     mobilPemainContainer.position.y -= delta * 1.2;
                 } else {
-                    mobilPemainContainer.position.y = 0;
+                    mobilPemainContainer.position.y = 0.05;
                 }
 
                 for (let i = daftarRintangan.length - 1; i >= 0; i--) {
